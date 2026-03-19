@@ -17,6 +17,7 @@ import { TeacherAssiduidadeReportView } from './components/TeacherAssiduidadeRep
 import { LessonCalendar } from './components/LessonCalendar';
 import { CalendarForm } from './components/CalendarForm';
 import { LoginForm } from './components/LoginForm';
+import { SetupForm } from './components/SetupForm';
 import { UserManagement } from './components/UserManagement';
 import { ProfilePage } from './components/ProfilePage';
 import { ChurchSettingsForm } from './components/ChurchSettingsForm';
@@ -26,7 +27,6 @@ import { Portal } from './components/Portal';
 import { MembersManagement } from './components/MembersManagement';
 import { FinancialManagement } from './components/FinancialManagement';
 import { RegionalManagement } from './components/RegionalManagement';
-import { MissionsManagement } from './components/MissionsManagement';
 import { TithesManagement } from './components/TithesManagement';
 import { api } from './services/api';
 
@@ -45,6 +45,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
   const [isUnauthorized, setIsUnauthorized] = useState(false);
+  const [isSetupRequired, setIsSetupRequired] = useState(false);
   
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -110,6 +111,13 @@ const App: React.FC = () => {
         const health = await fetch('/api/health').then(r => r.json()).catch(() => ({ database: 'error' }));
         if (health.database !== 'connected') {
           setDbError(health.database === 'disconnected' ? 'DATABASE_URL não configurada' : health.database);
+        }
+
+        const setupStatus = await api.auth.checkSetup();
+        if (!setupStatus.isSetup) {
+          setIsSetupRequired(true);
+          setLoading(false);
+          return;
         }
 
         await fetchChurchSettings();
@@ -397,6 +405,10 @@ const App: React.FC = () => {
     );
   }
 
+  if (isSetupRequired) {
+    return <SetupForm initialSettings={churchSettings} onSetupSuccess={() => { setIsSetupRequired(false); checkUserSession(true); }} />;
+  }
+
   if (!session) return <LoginForm initialSettings={churchSettings} onLoginSuccess={() => checkUserSession(true)} />;
 
   const filteredClasses = session.role === 'ADMIN' 
@@ -423,7 +435,6 @@ const App: React.FC = () => {
     [AppView.FINANCIAL_DASHBOARD]: 'Tesouraria',
     [AppView.TITHES]: 'Lançamentos',
     [AppView.REGIONAIS]: 'Gestão de Regionais',
-    [AppView.MISSOES]: 'Gestão de Missões',
     [AppView.DASHBOARD]: 'Início',
     [AppView.CALENDAR]: 'Calendário',
     [AppView.REGISTRATIONS]: 'Cadastros',
@@ -458,7 +469,6 @@ const App: React.FC = () => {
         { view: AppView.FINANCIAL_DASHBOARD, label: 'Tesouraria', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> },
         { view: AppView.TITHES, label: 'Lançamentos', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> },
         { view: AppView.REGIONAIS, label: 'Regionais', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg> },
-        { view: AppView.MISSOES, label: 'Missões', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> },
         { view: AppView.PROFILE, label: 'Perfil', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
         ...(session && session.role === 'ADMIN' ? [{ view: AppView.SETTINGS, label: 'Config.', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924-1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> }] : [])
       ];
@@ -788,9 +798,6 @@ const App: React.FC = () => {
 
       case AppView.REGIONAIS:
         return <RegionalManagement />;
-
-      case AppView.MISSOES:
-        return <MissionsManagement />;
 
       case AppView.TITHES:
         return <TithesManagement />;

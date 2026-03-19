@@ -90,23 +90,6 @@ export const Portal: React.FC<PortalProps> = ({ churchSettings, allowedModules, 
             </button>
           )}
 
-          {/* Missões */}
-          {isAllowed(AppModule.MISSIONS) && (
-            <button 
-              onClick={() => onSelectModule(AppModule.MISSIONS)}
-              className="group relative bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm hover:shadow-2xl hover:border-orange-200 transition-all duration-300 flex flex-col items-center text-center overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-3xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-inner">
-                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                </svg>
-              </div>
-              <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight relative z-10">Missões</h2>
-              <p className="text-slate-500 text-sm mt-2 font-medium relative z-10">Gestão de missões, projetos missionários e financeiro.</p>
-            </button>
-          )}
-
           {/* Configurações */}
           {isAllowed(AppModule.CONFIG) && (
             <button 

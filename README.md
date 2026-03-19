@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
--- 8. Regionais e Missões
+-- 8. Regionais
 CREATE TABLE IF NOT EXISTS regionals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
@@ -177,19 +177,8 @@ CREATE TABLE IF NOT EXISTS regional_transactions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS mission_transactions (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  description TEXT NOT NULL,
-  income_amount DECIMAL(12,2) DEFAULT 0,
-  expense_amount DECIMAL(12,2) DEFAULT 0,
-  date DATE NOT NULL DEFAULT CURRENT_DATE,
-  reference_month TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-);
-
 -- Dados Iniciais
-INSERT INTO contribution_types (name) VALUES ('Dízimo'), ('Oferta'), ('Oferta Especial'), ('Missões') ON CONFLICT (name) DO NOTHING;
+INSERT INTO contribution_types (name) VALUES ('Dízimo'), ('Oferta'), ('Oferta Especial') ON CONFLICT (name) DO NOTHING;
 ```
 
 ### 4. Variáveis de Ambiente
@@ -250,8 +239,9 @@ docker-compose up -d --build
 Isso irá:
 1. Criar um banco de dados PostgreSQL automaticamente.
 2. Executar o script `init.sql` para criar todas as tabelas.
-3. Compilar o frontend e iniciar o servidor Node.js.
-4. Disponibilizar o app em `http://localhost:3000`.
+3. Compilar o frontend e iniciar o servidor Node.js na porta interna 3001.
+4. Iniciar o **Nginx** como proxy reverso na porta 3000.
+5. Disponibilizar o app em `http://localhost:3000`.
 
 #### Comandos Úteis do Docker:
 - **Ver logs**: `docker-compose logs -f app`

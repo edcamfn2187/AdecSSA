@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 1. Configurações da Igreja
 CREATE TABLE IF NOT EXISTS church_settings (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL DEFAULT 'Minha EBD',
+  name TEXT NOT NULL UNIQUE DEFAULT 'Minha EBD',
   pastor TEXT,
   secretary TEXT,
   superintendent TEXT,
@@ -16,13 +16,17 @@ CREATE TABLE IF NOT EXISTS church_settings (
 
 -- 2. Perfis de Usuário (Sincronizado com Supabase Auth)
 CREATE TABLE IF NOT EXISTS profiles (
-  id UUID PRIMARY KEY,
-  email TEXT NOT NULL,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
   full_name TEXT,
+  phone TEXT,
+  password TEXT, -- Para autenticação local (opcional)
   role TEXT CHECK (role IN ('ADMIN', 'TEACHER')) DEFAULT 'TEACHER',
   allowed_modules TEXT[] DEFAULT '{EBD}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS password TEXT;
 
 -- 3. Membrezia
 CREATE TABLE IF NOT EXISTS members (
@@ -129,7 +133,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
--- 8. Regionais e Missões
+-- 8. Regionais
 CREATE TABLE IF NOT EXISTS regionals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
@@ -147,17 +151,6 @@ CREATE TABLE IF NOT EXISTS regional_transactions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS mission_transactions (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  name TEXT NOT NULL,
-  description TEXT NOT NULL,
-  income_amount DECIMAL(12,2) DEFAULT 0,
-  expense_amount DECIMAL(12,2) DEFAULT 0,
-  date DATE NOT NULL DEFAULT CURRENT_DATE,
-  reference_month TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
-);
-
 -- Dados Iniciais
-INSERT INTO contribution_types (name) VALUES ('Dízimo'), ('Oferta'), ('Oferta Especial'), ('Missões') ON CONFLICT (name) DO NOTHING;
-INSERT INTO church_settings (name) VALUES ('Minha EBD') ON CONFLICT DO NOTHING;
+INSERT INTO contribution_types (name) VALUES ('Dízimo'), ('Oferta'), ('Oferta Especial') ON CONFLICT (name) DO NOTHING;
+INSERT INTO church_settings (name) VALUES ('Minha EBD') ON CONFLICT (name) DO NOTHING;

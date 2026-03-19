@@ -561,7 +561,7 @@ ALTER TABLE tithes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all access CT" ON contribution_types FOR ALL USING (true);
 CREATE POLICY "Allow all access TP" ON tithe_payers FOR ALL USING (true);
 CREATE POLICY "Allow all access T" ON tithes FOR ALL USING (true);
-INSERT INTO contribution_types (name) VALUES ('Dízimo'), ('Oferta'), ('Oferta Especial'), ('Missões') ON CONFLICT (name) DO NOTHING;`;
+INSERT INTO contribution_types (name) VALUES ('Dízimo'), ('Oferta'), ('Oferta Especial') ON CONFLICT (name) DO NOTHING;`;
                     navigator.clipboard.writeText(sql);
                     alert('SQL copiado para a área de transferência! Cole no SQL Editor do Supabase.');
                   }}
@@ -899,7 +899,7 @@ INSERT INTO contribution_types (name) VALUES ('Dízimo'), ('Oferta'), ('Oferta E
                   value={typeFormData.name || ''}
                   onChange={(e) => setTypeFormData({...typeFormData, name: e.target.value})}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
-                  placeholder="Ex: Dízimo, Oferta, Missões..."
+                  placeholder="Ex: Dízimo, Oferta..."
                 />
               </div>
               <div className="pt-4 flex gap-3">

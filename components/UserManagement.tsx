@@ -218,7 +218,6 @@ export const UserManagement: React.FC = () => {
                     { id: AppModule.EBD, label: 'EBD Manager Pro' },
                     { id: AppModule.FINANCIAL, label: 'Tesouraria' },
                     { id: AppModule.MEMBERS, label: 'Membrezia (Secretaria)' },
-                    { id: AppModule.MISSIONS, label: 'Missões' },
                     { id: AppModule.CONFIG, label: 'Configurações' }
                   ].map(module => (
                     <label key={module.id} className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors">
@@ -291,7 +290,6 @@ export const UserManagement: React.FC = () => {
                     { id: AppModule.EBD, label: 'EBD Manager Pro' },
                     { id: AppModule.FINANCIAL, label: 'Tesouraria' },
                     { id: AppModule.MEMBERS, label: 'Membrezia (Secretaria)' },
-                    { id: AppModule.MISSIONS, label: 'Missões' },
                     { id: AppModule.CONFIG, label: 'Configurações' }
                   ].map(module => (
                     <label key={module.id} className="flex items-center gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors">

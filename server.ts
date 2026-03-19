@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pg from 'pg';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 dotenv.config();
 
@@ -30,10 +32,134 @@ const pool = new Pool({
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  // AI Studio expects port 3000. Docker will provide 3001 via env.
+  const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
   app.use(cors());
   app.use(express.json());
+
+  // Auth Routes
+  app.get('/api/auth/check-setup', async (req, res) => {
+    if (!connectionString) {
+      return res.status(503).json({ error: 'DATABASE_URL_NOT_CONFIGURED' });
+    }
+    try {
+      const client = await pool.connect();
+      try {
+        const result = await client.query('SELECT COUNT(*) FROM profiles');
+        const count = parseInt(result.rows[0].count, 10);
+        res.json({ isSetup: count > 0 });
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      console.error('Check setup error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/auth/setup', async (req, res) => {
+    const { email, password, name } = req.body;
+    if (!connectionString) {
+      return res.status(503).json({ error: 'DATABASE_URL_NOT_CONFIGURED' });
+    }
+    try {
+      const client = await pool.connect();
+      try {
+        const result = await client.query('SELECT COUNT(*) FROM profiles');
+        const count = parseInt(result.rows[0].count, 10);
+        if (count > 0) {
+          return res.status(403).json({ error: 'Sistema já configurado' });
+        }
+
+        // Ensure password column exists
+        await client.query('ALTER TABLE profiles ADD COLUMN IF NOT EXISTS password TEXT');
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const insertResult = await client.query(
+          'INSERT INTO profiles (id, email, password, full_name, role, allowed_modules) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5) RETURNING id, email, role',
+          [email, hashedPassword, name, 'ADMIN', '{PORTAL,MEMBERS,FINANCIAL,EBD,REGIONAIS,CONFIG}']
+        );
+        
+        const user = insertResult.rows[0];
+        const token = jwt.sign(
+          { id: user.id, email: user.email, role: user.role },
+          process.env.JWT_SECRET || 'secret',
+          { expiresIn: '24h' }
+        );
+
+        res.json({
+          session: {
+            access_token: token,
+            user: { id: user.id, email: user.email }
+          }
+        });
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      console.error('Setup error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/auth/login', async (req, res) => {
+    const { email, password } = req.body;
+    if (!connectionString) {
+      return res.status(503).json({ error: 'DATABASE_URL_NOT_CONFIGURED' });
+    }
+
+    try {
+      const client = await pool.connect();
+      try {
+        const result = await client.query('SELECT * FROM profiles WHERE email = $1', [email]);
+        const user = result.rows[0];
+
+        if (!user) {
+          return res.status(401).json({ error: 'Credenciais inválidas' });
+        }
+
+        // Se a senha no banco for igual à enviada (plain text para o admin inicial)
+        // ou se o hash bater
+        const isMatch = user.password === password || (user.password && await bcrypt.compare(password, user.password));
+
+        if (!isMatch) {
+          return res.status(401).json({ error: 'Credenciais inválidas' });
+        }
+
+        // Se a senha era plain text, vamos hashear agora para segurança
+        if (user.password === password) {
+          const hashedPassword = await bcrypt.hash(password, 10);
+          await client.query('UPDATE profiles SET password = $1 WHERE id = $2', [hashedPassword, user.id]);
+        }
+
+        const token = jwt.sign(
+          { id: user.id, email: user.email, role: user.role },
+          process.env.JWT_SECRET || 'secret',
+          { expiresIn: '24h' }
+        );
+
+        res.json({
+          session: {
+            access_token: token,
+            user: {
+              id: user.id,
+              email: user.email,
+              user_metadata: {
+                full_name: user.full_name,
+                role: user.role
+              }
+            }
+          }
+        });
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
 
   // API Routes
   app.get('/api/health', async (req, res) => {
@@ -83,7 +209,6 @@ async function startServer() {
     'tithe_payers',
     'tithes',
     'contribution_types',
-    'mission_transactions',
     'transactions',
     'regionals',
     'regional_transactions'
@@ -187,7 +312,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

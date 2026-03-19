@@ -5,7 +5,6 @@ export enum AppModule {
   FINANCIAL = 'FINANCIAL',
   EBD = 'EBD',
   REGIONAIS = 'REGIONAIS',
-  MISSIONS = 'MISSIONS',
   CONFIG = 'CONFIG'
 }
 
@@ -29,7 +28,6 @@ export enum AppView {
   CALENDAR = 'CALENDAR',
   AI_INSIGHTS = 'AI_INSIGHTS',
   REGIONAIS = 'REGIONAIS',
-  MISSOES = 'MISSOES',
   USERS = 'USERS',
   PROFILE = 'PROFILE',
   REGISTRATIONS = 'REGISTRATIONS',
@@ -84,24 +82,9 @@ export interface Regional {
   name: string;
 }
 
-export interface Mission {
-  id: string;
-  name: string;
-}
-
 export interface RegionalTransaction {
   id: string;
   regional_id: string;
-  description: string;
-  income_amount: number;
-  expense_amount: number;
-  date: string;
-  reference_month: string;
-}
-
-export interface MissionTransaction {
-  id: string;
-  name: string;
   description: string;
   income_amount: number;
   expense_amount: number;

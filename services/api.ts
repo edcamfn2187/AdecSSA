@@ -134,15 +134,77 @@ export const api = {
 
   auth: {
     async getSession() {
+      const localSession = localStorage.getItem('ebd_local_session');
+      if (localSession) {
+        return { data: { session: JSON.parse(localSession) }, error: null };
+      }
       return supabase.auth.getSession();
     },
     onAuthStateChange(callback: any) {
+      // Adiciona o callback à lista para disparar manualmente se necessário
+      if (typeof window !== 'undefined') {
+        (window as any)._auth_callback = callback;
+      }
       return supabase.auth.onAuthStateChange(callback);
     },
     async signOut() {
+      localStorage.removeItem('ebd_local_session');
+      if (typeof window !== 'undefined' && (window as any)._auth_callback) {
+        (window as any)._auth_callback('SIGNED_OUT', null);
+      }
       return supabase.auth.signOut();
     },
+    async checkSetup() {
+      try {
+        const response = await fetch(`${API_URL}/api/auth/check-setup`);
+        if (response.ok) {
+          return await response.json();
+        }
+        return { isSetup: true }; // Fallback
+      } catch (e) {
+        console.warn('Check setup failed:', e);
+        return { isSetup: true };
+      }
+    },
+    async setup(data: any) {
+      const response = await fetch(`${API_URL}/api/auth/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Erro ao configurar sistema');
+      }
+      const { session } = await response.json();
+      localStorage.setItem('ebd_local_session', JSON.stringify(session));
+      
+      if (typeof window !== 'undefined' && (window as any)._auth_callback) {
+        (window as any)._auth_callback('SIGNED_IN', session);
+      }
+      return { data: { session }, error: null };
+    },
     async signInWithPassword(credentials: any) {
+      try {
+        const response = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(credentials),
+        });
+        if (response.ok) {
+          const { session } = await response.json();
+          localStorage.setItem('ebd_local_session', JSON.stringify(session));
+          
+          // Dispara o callback manualmente para o App.tsx reagir
+          if (typeof window !== 'undefined' && (window as any)._auth_callback) {
+            (window as any)._auth_callback('SIGNED_IN', session);
+          }
+          
+          return { data: { session }, error: null };
+        }
+      } catch (e) {
+        console.warn('Local auth failed, falling back to Supabase:', e);
+      }
       return supabase.auth.signInWithPassword(credentials);
     },
     async signUp(credentials: any) {
