@@ -43,6 +43,7 @@ const App: React.FC = () => {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [churchSettings, setChurchSettings] = useState<ChurchSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dbError, setDbError] = useState<string | null>(null);
   const [isUnauthorized, setIsUnauthorized] = useState(false);
   
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -105,6 +106,12 @@ const App: React.FC = () => {
   useEffect(() => {
     const init = async () => {
       try {
+        // Check health first
+        const health = await fetch('/api/health').then(r => r.json()).catch(() => ({ database: 'error' }));
+        if (health.database !== 'connected') {
+          setDbError(health.database === 'disconnected' ? 'DATABASE_URL não configurada' : health.database);
+        }
+
         await fetchChurchSettings();
         await checkUserSession(true); 
       } catch (e) {
@@ -357,7 +364,23 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-6 text-white">
         <div className="w-12 h-12 border-4 border-[#6e295e] border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Iniciando sistema...</p>
+        <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mb-8">Iniciando sistema...</p>
+        
+        {dbError && (
+          <div className="max-w-sm w-full p-6 bg-white/5 border border-white/10 rounded-3xl text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="w-12 h-12 bg-amber-500/20 text-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <h3 className="text-white font-black text-xs uppercase tracking-widest mb-2">Erro de Banco de Dados</h3>
+            <p className="text-slate-400 text-sm font-medium mb-4">Não foi possível conectar ao PostgreSQL.</p>
+            <div className="bg-black/40 p-3 rounded-xl font-mono text-[10px] text-amber-400/80 break-all mb-4">
+              {dbError}
+            </div>
+            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight leading-relaxed">
+              Verifique a variável <span className="text-white">DATABASE_URL</span> nos Secrets do AI Studio (⚙️ Configurações).
+            </p>
+          </div>
+        )}
       </div>
     );
   }

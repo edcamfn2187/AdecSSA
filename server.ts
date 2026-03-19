@@ -14,11 +14,18 @@ const __dirname = path.dirname(__filename);
 const { Pool } = pg;
 
 // Database connection
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  console.warn('⚠️  DATABASE_URL is not set. The backend will not be able to connect to the database.');
+  console.warn('To fix this, add DATABASE_URL to your environment variables or AI Studio Secrets.');
+  console.warn('Example: postgres://user:password@host:5432/dbname');
+}
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || process.env.VITE_SUPABASE_URL?.replace('https://', 'postgres://postgres:password@').replace('.supabase.co', '.supabase.co:5432/postgres'),
-  ssl: {
-    rejectUnauthorized: false
-  }
+  connectionString,
+  ssl: connectionString?.includes('supabase.co') ? { rejectUnauthorized: false } : false,
+  connectionTimeoutMillis: 5000, // Fail fast
 });
 
 async function startServer() {
@@ -29,12 +36,30 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', message: 'Server is running' });
+  app.get('/api/health', async (req, res) => {
+    let dbStatus = 'disconnected';
+    if (connectionString) {
+      try {
+        const client = await pool.connect();
+        await client.query('SELECT 1');
+        client.release();
+        dbStatus = 'connected';
+      } catch (err) {
+        dbStatus = `error: ${err instanceof Error ? err.message : String(err)}`;
+      }
+    }
+    res.json({ 
+      status: 'ok', 
+      database: dbStatus,
+      message: connectionString ? 'Server is running' : 'Server is running but DATABASE_URL is missing'
+    });
   });
 
   // Helper function to handle queries
   const handleQuery = async (query: string, params: any[] = []) => {
+    if (!connectionString) {
+      return null;
+    }
     const client = await pool.connect();
     try {
       const result = await client.query(query, params);
@@ -61,12 +86,14 @@ async function startServer() {
     'mission_transactions',
     'transactions',
     'regionals',
-    'regional_transactions',
-    'members'
+    'regional_transactions'
   ];
 
   tables.forEach(table => {
     app.get(`/api/${table}`, async (req, res) => {
+      if (!connectionString) {
+        return res.status(503).json({ error: 'DATABASE_URL_NOT_CONFIGURED' });
+      }
       try {
         const queryParams = req.query;
         let query = `SELECT * FROM ${table}`;
@@ -74,7 +101,7 @@ async function startServer() {
         
         if (Object.keys(queryParams).length > 0) {
           const conditions = Object.keys(queryParams).map((key, i) => {
-            values.push(queryParams[key]);
+            values.push(queryParams[key as string]);
             return `${key} = $${i + 1}`;
           }).join(' AND ');
           query += ` WHERE ${conditions}`;
