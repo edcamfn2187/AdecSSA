@@ -1,0 +1,7 @@
+{
+  "name": "Adec S. S. Anta",
+  "description": "Sistema integrado de gestão para a Igreja Adec S. S. Anta, incluindo Secretaria (Membros), Tesouraria (Financeiro) e EBD Manager Pro.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
