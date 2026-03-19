@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import { api } from '../services/api';
+import { supabaseUrl, supabaseKey } from '../services/supabase';
 import { createClient } from '@supabase/supabase-js';
 import { Profile, UserRole, AppModule } from '../types';
 
@@ -32,13 +33,12 @@ export const UserManagement: React.FC = () => {
   const fetchProfiles = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      setProfiles(data || []);
+      const data = await api.get('profiles');
+      // Sort client-side for now
+      const sortedData = (data || []).sort((a: any, b: any) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      setProfiles(sortedData);
     } catch (err: any) {
       console.error('Erro ao carregar perfis:', err);
     } finally {
@@ -54,9 +54,6 @@ export const UserManagement: React.FC = () => {
 
     setSaving(true);
     try {
-      const supabaseUrl = 'https://yfeqddbvvhioyllkcnca.supabase.co';
-      const supabaseKey = 'sb_publishable_wXpZdqfj7wBjJSRREWbMFg_tHT2fUBq';
-      
       const tempClient = createClient(supabaseUrl, supabaseKey, {
         auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
       });
@@ -86,16 +83,11 @@ export const UserManagement: React.FC = () => {
     
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ 
-          full_name: editName, 
-          role: editRole,
-          allowed_modules: editAllowedModules
-        })
-        .eq('id', editingProfile.id);
-
-      if (error) throw error;
+      await api.put('profiles', editingProfile.id, { 
+        full_name: editName, 
+        role: editRole,
+        allowed_modules: editAllowedModules
+      });
 
       setEditingProfile(null);
       await fetchProfiles();
@@ -116,8 +108,7 @@ export const UserManagement: React.FC = () => {
 
   const handleDeleteAccess = async (profile: Profile) => {
     try {
-      const { error } = await supabase.from('profiles').delete().eq('id', profile.id);
-      if (error) throw error;
+      await api.delete('profiles', profile.id);
       setProfiles(profiles.filter(p => p.id !== profile.id));
       setDeletingProfile(null);
     } catch (err: any) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, Tithe, ContributionType, Regional, RegionalTransaction, ChurchSettings } from '../types';
-import { supabase } from '../services/supabase';
+import { api } from '../services/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -38,8 +38,8 @@ export const FinancialManagement: React.FC = () => {
 
   const fetchChurchSettings = async () => {
     try {
-      const { data, error } = await supabase.from('church_settings').select('*').single();
-      if (!error && data) setChurchSettings(data);
+      const data = await api.get('church_settings');
+      if (data && data.length > 0) setChurchSettings(data[0]);
     } catch (e) {
       console.warn("Could not fetch church settings");
     }
@@ -49,34 +49,35 @@ export const FinancialManagement: React.FC = () => {
     setLoading(true);
     setDbError(null);
     try {
-      const { data: transData, error: transError } = await supabase.from('transactions').select('*').order('date', { ascending: false });
-      if (transError) {
-        if (transError.code === 'PGRST205') {
-          setDbError('A tabela "transactions" não foi encontrada no banco de dados.');
-        } else {
-          console.error('Error fetching transactions:', transError);
-        }
-      } else if (transData) {
-        setTransactions(transData);
+      const transData = await api.get('transactions');
+      if (transData) {
+        const sortedData = [...transData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setTransactions(sortedData);
       }
 
-      const { data: tithesData, error: tithesError } = await supabase.from('tithes').select('*');
-      if (!tithesError && tithesData) {
+      const tithesData = await api.get('tithes');
+      if (tithesData) {
         setTithes(tithesData);
       }
 
-      const { data: typesData, error: typesError } = await supabase.from('contribution_types').select('*');
-      if (!typesError && typesData) {
+      const typesData = await api.get('contribution_types');
+      if (typesData) {
         setContributionTypes(typesData);
       }
 
-      const { data: regData } = await supabase.from('regionals').select('*').order('name');
-      if (regData) setRegionals(regData);
+      const regData = await api.get('regionals');
+      if (regData) {
+        const sortedRegData = [...regData].sort((a, b) => a.name.localeCompare(b.name));
+        setRegionals(sortedRegData);
+      }
 
-      const { data: regTransData } = await supabase.from('regional_transactions').select('*');
+      const regTransData = await api.get('regional_transactions');
       if (regTransData) setRegionalTransactions(regTransData);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      if (e.message?.includes('Failed to fetch')) {
+        setDbError('Estrutura do banco de dados incompleta ou não encontrada.');
+      }
     } finally {
       setLoading(false);
     }
@@ -98,24 +99,20 @@ export const FinancialManagement: React.FC = () => {
     
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from('transactions')
-        .insert([{
-          description: formData.description,
-          amount: formData.amount || 0,
-          type: transactionType,
-          date: formData.date,
-          category: formData.category
-        }]);
+      await api.post('transactions', {
+        description: formData.description,
+        amount: formData.amount || 0,
+        type: transactionType,
+        date: formData.date,
+        category: formData.category
+      });
         
-      if (error) throw error;
-      
       setIsModalOpen(false);
       setFormData({});
       fetchTransactions();
     } catch (err) {
       console.error('Error saving transaction:', err);
-      alert('Erro ao salvar transação. Verifique se a tabela "transactions" existe no Supabase.');
+      alert('Erro ao salvar transação.');
     } finally {
       setIsSaving(false);
     }

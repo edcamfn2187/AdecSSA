@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Tithe, TithePayer, ContributionType, Transaction } from '../types';
-import { supabase } from '../services/supabase';
+import { api } from '../services/api';
 
 export const TithesManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'lancamentos' | 'cadastro' | 'tipos'>('lancamentos');
@@ -84,62 +84,29 @@ export const TithesManagement: React.FC = () => {
     setDbError(null);
     try {
       // Fetch types
-      const { data: typesData, error: typesError } = await supabase
-        .from('contribution_types')
-        .select('*')
-        .order('name');
-
-      if (typesError) {
-        if (typesError.code === 'PGRST205') {
-          setDbError('As tabelas financeiras não foram encontradas no banco de dados.');
-        }
-        console.error("Erro ao buscar tipos de contribuição:", typesError);
-        setContributionTypes([]);
-      } else {
-        setContributionTypes(typesData || []);
-      }
+      const typesData = await api.get('contribution_types');
+      setContributionTypes(typesData || []);
 
       // Fetch payers
-      const { data: payersData, error: payersError } = await supabase
-        .from('tithe_payers')
-        .select('*')
-        .order('name');
-
-      if (payersError) {
-        console.error("Erro ao buscar ofertantes:", payersError);
-        setTithePayers([]);
-      } else {
-        setTithePayers(payersData || []);
-      }
+      const payersData = await api.get('tithe_payers');
+      setTithePayers(payersData || []);
 
       // Fetch tithes for the selected month
-      const { data: tithesData, error: tithesError } = await supabase
-        .from('tithes')
-        .select('*')
-        .eq('month', selectedMonth);
-
-      if (tithesError) {
-        console.error("Erro ao buscar lançamentos:", tithesError);
-        setTithes([]);
-      } else {
-        setTithes(tithesData || []);
-      }
+      const tithesData = await api.get('tithes');
+      const filteredTithes = (tithesData || []).filter((t: any) => t.month === selectedMonth);
+      setTithes(filteredTithes);
 
       // Fetch expenses (transactions of type EXPENSE)
-      const { data: transData, error: transError } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('type', 'EXPENSE')
-        .order('date', { ascending: false });
-
-      if (transError) {
-        console.error("Erro ao buscar despesas:", transError);
-        setTransactions([]);
-      } else {
-        setTransactions(transData || []);
-      }
-    } catch (e) {
+      const transData = await api.get('transactions');
+      const filteredTrans = (transData || [])
+        .filter((t: any) => t.type === 'EXPENSE')
+        .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setTransactions(filteredTrans);
+    } catch (e: any) {
       console.error(e);
+      if (e.message?.includes('not found') || e.message?.includes('relation')) {
+        setDbError('As tabelas financeiras não foram encontradas no banco de dados.');
+      }
     } finally {
       setLoading(false);
     }
@@ -180,24 +147,15 @@ export const TithesManagement: React.FC = () => {
     setIsSaving(true);
     try {
       if (editingPayer) {
-        const { error } = await supabase
-          .from('tithe_payers')
-          .update({
-            name: payerFormData.name,
-            category: payerFormData.category
-          })
-          .eq('id', editingPayer.id);
-          
-        if (error) throw error;
+        await api.put('tithe_payers', editingPayer.id, {
+          name: payerFormData.name,
+          category: payerFormData.category
+        });
       } else {
-        const { error } = await supabase
-          .from('tithe_payers')
-          .insert([{
-            name: payerFormData.name,
-            category: payerFormData.category
-          }]);
-          
-        if (error) throw error;
+        await api.post('tithe_payers', {
+          name: payerFormData.name,
+          category: payerFormData.category
+        });
       }
       
       setIsPayerModalOpen(false);
@@ -219,16 +177,9 @@ export const TithesManagement: React.FC = () => {
     setIsSavingType(true);
     try {
       if (editingType) {
-        const { error } = await supabase
-          .from('contribution_types')
-          .update({ name: typeFormData.name })
-          .eq('id', editingType.id);
-        if (error) throw error;
+        await api.put('contribution_types', editingType.id, { name: typeFormData.name });
       } else {
-        const { error } = await supabase
-          .from('contribution_types')
-          .insert([{ name: typeFormData.name }]);
-        if (error) throw error;
+        await api.post('contribution_types', { name: typeFormData.name });
       }
       
       setIsTypeModalOpen(false);
@@ -250,8 +201,7 @@ export const TithesManagement: React.FC = () => {
       message: 'Tem certeza que deseja excluir este tipo de contribuição?',
       onConfirm: async () => {
         try {
-          const { error } = await supabase.from('contribution_types').delete().eq('id', id);
-          if (error) throw error;
+          await api.delete('contribution_types', id);
           fetchData();
           setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
         } catch (err) {
@@ -298,8 +248,7 @@ export const TithesManagement: React.FC = () => {
         const tithesToDelete = existingTithes.filter(t => !typesInForm.includes(t.type_id || ''));
 
         for (const t of tithesToDelete) {
-          const { error } = await supabase.from('tithes').delete().eq('id', t.id);
-          if (error) throw error;
+          await api.delete('tithes', t.id);
         }
       }
 
@@ -312,22 +261,15 @@ export const TithesManagement: React.FC = () => {
           // If editing, we overwrite. If not, we unify (sum).
           const newAmount = isEditingTithe ? amountNum : (existingTithe.amount + amountNum);
           
-          const { error } = await supabase
-            .from('tithes')
-            .update({ amount: newAmount })
-            .eq('id', existingTithe.id);
-          if (error) throw error;
+          await api.put('tithes', existingTithe.id, { amount: newAmount });
         } else {
-          const { error } = await supabase
-            .from('tithes')
-            .insert([{
-              payer_id: titheFormData.payer_id,
-              type_id: entry.type_id,
-              amount: amountNum,
-              month: titheFormData.month,
-              date: new Date().toISOString()
-            }]);
-          if (error) throw error;
+          await api.post('tithes', {
+            payer_id: titheFormData.payer_id,
+            type_id: entry.type_id,
+            amount: amountNum,
+            month: titheFormData.month,
+            date: new Date().toISOString()
+          });
         }
       }
 
@@ -351,8 +293,7 @@ export const TithesManagement: React.FC = () => {
         try {
           const tithesToDelete = tithes.filter(t => t.payer_id === payerId && t.month === month);
           for (const t of tithesToDelete) {
-            const { error } = await supabase.from('tithes').delete().eq('id', t.id);
-            if (error) throw error;
+            await api.delete('tithes', t.id);
           }
           fetchData();
           setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
@@ -371,12 +312,7 @@ export const TithesManagement: React.FC = () => {
       message: 'Tem certeza que deseja excluir este ofertante? Todos os lançamentos vinculados também serão afetados.',
       onConfirm: async () => {
         try {
-          const { error } = await supabase
-            .from('tithe_payers')
-            .delete()
-            .eq('id', id);
-            
-          if (error) throw error;
+          await api.delete('tithe_payers', id);
           fetchData();
           setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
         } catch (err) {
@@ -396,27 +332,20 @@ export const TithesManagement: React.FC = () => {
       const amountNum = parseFloat(expenseFormData.amount) || 0;
       
       if (editingExpense) {
-        const { error } = await supabase
-          .from('transactions')
-          .update({
-            description: expenseFormData.description,
-            amount: amountNum,
-            category: expenseFormData.category,
-            date: expenseFormData.date
-          })
-          .eq('id', editingExpense.id);
-        if (error) throw error;
+        await api.put('transactions', editingExpense.id, {
+          description: expenseFormData.description,
+          amount: amountNum,
+          category: expenseFormData.category,
+          date: expenseFormData.date
+        });
       } else {
-        const { error } = await supabase
-          .from('transactions')
-          .insert([{
-            description: expenseFormData.description,
-            amount: amountNum,
-            type: 'EXPENSE',
-            category: expenseFormData.category,
-            date: expenseFormData.date
-          }]);
-        if (error) throw error;
+        await api.post('transactions', {
+          description: expenseFormData.description,
+          amount: amountNum,
+          type: 'EXPENSE',
+          category: expenseFormData.category,
+          date: expenseFormData.date
+        });
       }
       
       setIsExpenseModalOpen(false);
@@ -436,8 +365,7 @@ export const TithesManagement: React.FC = () => {
       message: 'Tem certeza que deseja excluir esta despesa?',
       onConfirm: async () => {
         try {
-          const { error } = await supabase.from('transactions').delete().eq('id', id);
-          if (error) throw error;
+          await api.delete('transactions', id);
           fetchData();
           setDeleteConfirm(prev => ({ ...prev, isOpen: false }));
         } catch (e) {

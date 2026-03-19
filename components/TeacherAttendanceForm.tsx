@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Teacher, TeacherAttendanceRecord } from '../types';
-import { supabase } from '../services/supabase';
+import { api } from '../services/api';
 
 interface TeacherAttendanceFormProps {
   teachers: Teacher[];
@@ -27,15 +27,12 @@ export const TeacherAttendanceForm: React.FC<TeacherAttendanceFormProps> = ({ te
     const fetchExistingRecord = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('teacher_attendance')
-          .select('*')
-          .eq('date', date)
-          .single();
+        const data = await api.get('teacher_attendance', { date });
 
-        if (data && !error) {
-          setPresentIds(data.present_teacher_ids || []);
-          setObservations(data.observations || '');
+        if (data && data.length > 0) {
+          const record = data[0];
+          setPresentIds(record.present_teacher_ids || []);
+          setObservations(record.observations || '');
         } else {
           setPresentIds([]);
           setObservations('');
@@ -72,11 +69,7 @@ export const TeacherAttendanceForm: React.FC<TeacherAttendanceFormProps> = ({ te
         observations
       };
 
-      const { error } = await supabase
-        .from('teacher_attendance')
-        .upsert(payload, { onConflict: 'date' });
-
-      if (error) throw error;
+      await api.upsert('teacher_attendance', payload, 'date');
       
       onSaveSuccess();
     } catch (err: any) {

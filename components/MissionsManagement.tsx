@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Mission, MissionTransaction, ChurchSettings } from '../types';
-import { supabase } from '../services/supabase';
+import { api } from '../services/api';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -43,8 +43,8 @@ export const MissionsManagement: React.FC = () => {
 
   const fetchChurchSettings = async () => {
     try {
-      const { data, error } = await supabase.from('church_settings').select('*').single();
-      if (!error && data) setChurchSettings(data);
+      const data = await api.get('church_settings');
+      if (data && data.length > 0) setChurchSettings(data[0]);
     } catch (e) {
       console.warn("Could not fetch church settings");
     }
@@ -54,16 +54,17 @@ export const MissionsManagement: React.FC = () => {
     setLoading(true);
     setDbError(null);
     try {
-      const { data: transData, error: transError } = await supabase.from('mission_transactions').select('*').order('date', { ascending: false });
-      if (transError) {
-        if (transError.code === 'PGRST205' || transError.code === 'PGRST204') {
-          setDbError('Estrutura do banco de dados incompleta ou não encontrada.');
-        }
-      } else if (transData) {
-        setTransactions(transData);
+      const transData = await api.get('mission_transactions');
+      if (transData) {
+        // Sort by date descending as the API might not support ordering yet
+        const sortedData = [...transData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setTransactions(sortedData);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      if (e.message?.includes('Failed to fetch')) {
+        setDbError('Estrutura do banco de dados incompleta ou não encontrada.');
+      }
     } finally {
       setLoading(false);
     }
@@ -85,17 +86,10 @@ export const MissionsManagement: React.FC = () => {
       };
 
       if (editingTransaction) {
-        const { error } = await supabase
-          .from('mission_transactions')
-          .update(payload)
-          .eq('id', editingTransaction.id);
-        if (error) throw error;
+        await api.put('mission_transactions', editingTransaction.id, payload);
         setNotification({ message: 'Lançamento atualizado!', type: 'success' });
       } else {
-        const { error } = await supabase
-          .from('mission_transactions')
-          .insert([payload]);
-        if (error) throw error;
+        await api.post('mission_transactions', payload);
         setNotification({ message: 'Lançamento salvo!', type: 'success' });
       }
         
@@ -111,7 +105,7 @@ export const MissionsManagement: React.FC = () => {
       fetchData();
     } catch (err) {
       console.error('Error saving transaction:', err);
-      setNotification({ message: 'Erro ao salvar lançamento. Verifique as colunas da tabela.', type: 'error' });
+      setNotification({ message: 'Erro ao salvar lançamento.', type: 'error' });
     } finally {
       setIsSaving(false);
       setTimeout(() => setNotification(null), 3000);
@@ -122,8 +116,7 @@ export const MissionsManagement: React.FC = () => {
     if (!transactionToDelete) return;
     
     try {
-      const { error } = await supabase.from('mission_transactions').delete().eq('id', transactionToDelete);
-      if (error) throw error;
+      await api.delete('mission_transactions', transactionToDelete);
       setNotification({ message: 'Lançamento excluído!', type: 'success' });
       fetchData();
     } catch (e) {

@@ -28,7 +28,7 @@ import { FinancialManagement } from './components/FinancialManagement';
 import { RegionalManagement } from './components/RegionalManagement';
 import { MissionsManagement } from './components/MissionsManagement';
 import { TithesManagement } from './components/TithesManagement';
-import { supabase } from './services/supabase';
+import { api } from './services/api';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<UserSession | null>(null);
@@ -114,7 +114,7 @@ const App: React.FC = () => {
     };
     init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = api.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         setSession(null);
         setLoading(false);
@@ -140,8 +140,8 @@ const App: React.FC = () => {
 
   const fetchChurchSettings = async () => {
     try {
-      const { data, error } = await supabase.from('church_settings').select('*').single();
-      if (!error && data) setChurchSettings(data);
+      const data = await api.get('church_settings');
+      if (data && data.length > 0) setChurchSettings(data[0]);
     } catch (e) {
       console.warn("Could not fetch church settings");
     }
@@ -151,7 +151,7 @@ const App: React.FC = () => {
     if (isInitial) setLoading(true);
     setIsUnauthorized(false);
     try {
-      const { data: { session: authSession }, error: authError } = await supabase.auth.getSession();
+      const { data: { session: authSession }, error: authError } = await api.auth.getSession();
       
       if (authError) {
         if (authError.message.includes('Refresh Token')) {
@@ -163,13 +163,10 @@ const App: React.FC = () => {
       }
 
       if (authSession) {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('id, role, full_name, allowed_modules')
-          .eq('id', authSession.user.id)
-          .single();
+        const profiles = await api.get('profiles');
+        const profile = profiles.find((p: any) => p.id === authSession.user.id);
 
-        if (profileError || !profile) {
+        if (!profile) {
           setIsUnauthorized(true);
           setSession(null);
         } else {
@@ -205,19 +202,19 @@ const App: React.FC = () => {
   const fetchData = async () => {
     try {
       const [
-        { data: clData },
-        { data: stData },
-        { data: tcData },
-        { data: reData },
-        { data: calData },
-        { data: tAttData }
+        clData,
+        stData,
+        tcData,
+        reData,
+        calData,
+        tAttData
       ] = await Promise.all([
-        supabase.from('classes').select('*'),
-        supabase.from('students').select('*'),
-        supabase.from('teachers').select('*'),
-        supabase.from('attendance_records').select('*'),
-        supabase.from('lesson_calendar').select('*'),
-        supabase.from('teacher_attendance').select('*')
+        api.get('classes'),
+        api.get('students'),
+        api.get('teachers'),
+        api.get('attendance_records'),
+        api.get('lesson_calendar'),
+        api.get('teacher_attendance')
       ]);
 
       if (clData) setClasses(clData.map(c => ({
@@ -271,7 +268,7 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     setLoading(true);
-    await supabase.auth.signOut();
+    await api.auth.signOut();
     setSession(null);
     setCurrentModule(AppModule.PORTAL);
     setLoading(false);
@@ -280,8 +277,7 @@ const App: React.FC = () => {
 
   const handleDeleteTeacher = async (id: string) => {
     try {
-      const { error } = await supabase.from('teachers').delete().eq('id', id);
-      if (error) throw error;
+      await api.delete('teachers', id);
       await fetchData();
       showNotification('Professor removido!');
     } catch (e) { showNotification(formatError(e), 'error'); }
@@ -289,8 +285,7 @@ const App: React.FC = () => {
 
   const handleDeleteRecord = async (id: string) => {
     try {
-      const { error } = await supabase.from('attendance_records').delete().eq('id', id);
-      if (error) throw error;
+      await api.delete('attendance_records', id);
       await fetchData();
       showNotification('Lançamento excluído!');
     } catch (e) { showNotification(formatError(e), 'error'); }
@@ -298,8 +293,7 @@ const App: React.FC = () => {
 
   const handleDeleteTeacherAttendance = async (id: string) => {
     try {
-      const { error } = await supabase.from('teacher_attendance').delete().eq('id', id);
-      if (error) throw error;
+      await api.delete('teacher_attendance', id);
       await fetchData();
       showNotification('Registro de chamada de professores excluído!');
     } catch (e) { showNotification(formatError(e), 'error'); }
@@ -307,8 +301,7 @@ const App: React.FC = () => {
 
   const handleDeleteCalendarEvent = async (id: string) => {
     try {
-      const { error } = await supabase.from('lesson_calendar').delete().eq('id', id);
-      if (error) throw error;
+      await api.delete('lesson_calendar', id);
       await fetchData();
       showNotification('Evento removido!');
     } catch (e) { showNotification(formatError(e), 'error'); }
@@ -316,8 +309,7 @@ const App: React.FC = () => {
 
   const handleDeleteClass = async (id: string) => {
     try {
-      const { error } = await supabase.from('classes').delete().eq('id', id);
-      if (error) throw error;
+      await api.delete('classes', id);
       await fetchData();
       showNotification('Classe removida!');
     } catch (e) { showNotification(formatError(e), 'error'); }
@@ -325,8 +317,7 @@ const App: React.FC = () => {
 
   const handleDeleteStudent = async (id: string) => {
     try {
-      const { error } = await supabase.from('students').delete().eq('id', id);
-      if (error) throw error;
+      await api.delete('students', id);
       await fetchData();
       showNotification('Aluno removido!');
     } catch (e) { showNotification(formatError(e), 'error'); }
@@ -505,8 +496,7 @@ const App: React.FC = () => {
                   lesson_theme: r.lessonTheme || ''
                 };
                 if (r.id) payload.id = r.id;
-                const { error } = await supabase.from('attendance_records').upsert(payload);
-                if (error) throw error;
+                await api.upsert('attendance_records', payload);
                 await fetchData();
                 setEditingRecord(null);
                 setCurrentView(AppView.REPORTS);
@@ -549,8 +539,7 @@ const App: React.FC = () => {
               try {
                 const payload: any = { date: ev.date, theme: ev.theme, description: ev.description, class_id: ev.classId };
                 if (ev.id) payload.id = ev.id;
-                const { error } = await supabase.from('lesson_calendar').upsert(payload);
-                if (error) throw error;
+                await api.upsert('lesson_calendar', payload);
                 await fetchData();
                 setIsCalendarFormOpen(false);
                 setEditingEvent(null);
@@ -601,7 +590,7 @@ const App: React.FC = () => {
                   {session.role === 'ADMIN' && <button onClick={() => { setEditingStudent(null); setIsStudentFormOpen(true); }} className="bg-[#6e295e] text-white px-6 py-3 rounded-2xl font-black text-xs shrink-0"> + NOVO ALUNO </button>}
                 </div>
                 {isStudentFormOpen ? (
-                   <StudentForm classes={filteredClasses} onSave={async (d) => { try { const payload: any = { name: d.name, class_id: d.classId, birth_date: d.birthDate, active: d.active }; if (d.id) payload.id = d.id; const { error } = await supabase.from('students').upsert(payload); if (error) throw error; await fetchData(); setIsStudentFormOpen(false); setEditingStudent(null); showNotification('Aluno salvo!'); } catch (e) { showNotification(formatError(e), 'error'); } }} onCancel={() => { setIsStudentFormOpen(false); setEditingStudent(null); }} editStudent={editingStudent} />
+                   <StudentForm classes={filteredClasses} onSave={async (d) => { try { const payload: any = { name: d.name, class_id: d.classId, birth_date: d.birthDate, active: d.active }; if (d.id) payload.id = d.id; await api.upsert('students', payload); await fetchData(); setIsStudentFormOpen(false); setEditingStudent(null); showNotification('Aluno salvo!'); } catch (e) { showNotification(formatError(e), 'error'); } }} onCancel={() => { setIsStudentFormOpen(false); setEditingStudent(null); }} editStudent={editingStudent} />
                 ) : (
                   <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                      <table className="w-full text-left">
@@ -657,7 +646,7 @@ const App: React.FC = () => {
             {activeRegTab === AppView.CLASSES && (
               <div className="space-y-6">
                 {isClassFormOpen ? (
-                  <ClassForm teachers={teachers} onSave={async (d) => { try { await supabase.from('classes').upsert(d); await fetchData(); setIsClassFormOpen(false); setEditingClass(null); showNotification('Classe salva!'); } catch(e) { showNotification(formatError(e), 'error'); } }} onCancel={() => { setIsClassFormOpen(false); setEditingClass(null); }} editClass={editingClass} />
+                  <ClassForm teachers={teachers} onSave={async (d) => { try { await api.upsert('classes', d); await fetchData(); setIsClassFormOpen(false); setEditingClass(null); showNotification('Classe salva!'); } catch(e) { showNotification(formatError(e), 'error'); } }} onCancel={() => { setIsClassFormOpen(false); setEditingClass(null); }} editClass={editingClass} />
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div className="col-span-full mb-2 flex justify-end">
@@ -689,7 +678,7 @@ const App: React.FC = () => {
                     try {
                       const payload: any = { name: t.name, email: t.email, birth_date: t.birthDate };
                       if (t.id) payload.id = t.id;
-                      await supabase.from('teachers').upsert(payload);
+                      await api.upsert('teachers', payload);
                       await fetchData();
                       setIsTeacherFormOpen(false);
                       setEditingTeacher(null);

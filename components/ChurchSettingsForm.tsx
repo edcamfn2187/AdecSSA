@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../services/supabase';
+import { api } from '../services/api';
 import { ChurchSettings } from '../types';
 
 interface ChurchSettingsFormProps {
@@ -29,9 +29,8 @@ export const ChurchSettingsForm: React.FC<ChurchSettingsFormProps> = ({ onSave }
 
   const fetchSettings = async () => {
     try {
-      const { data, error } = await supabase.from('church_settings').select('*').single();
-      if (error && error.code !== 'PGRST116') throw error;
-      if (data) setSettings(data);
+      const data = await api.get('church_settings');
+      if (data && data.length > 0) setSettings(data[0]);
     } catch (err: any) {
       console.error('Erro ao carregar configurações:', err);
     } finally {
@@ -71,22 +70,20 @@ export const ChurchSettingsForm: React.FC<ChurchSettingsFormProps> = ({ onSave }
         logo_url: settings.logo_url
       };
 
-      const { error } = settings.id 
-        ? await supabase.from('church_settings').update(payload).eq('id', settings.id)
-        : await supabase.from('church_settings').insert([payload]);
-
-      if (error) throw error;
+      if (settings.id) {
+        await api.put('church_settings', settings.id, payload);
+      } else {
+        await api.post('church_settings', payload);
+      }
       
       setMessage({ type: 'success', text: 'Configurações atualizadas com sucesso!' });
       onSave();
       fetchSettings(); // Recarrega para obter o ID caso tenha sido um insert
     } catch (err: any) {
-      console.error('Erro Supabase:', err);
+      console.error('Erro API:', err);
       setMessage({ 
         type: 'error', 
-        text: err.message?.includes('column') 
-          ? 'Erro: Colunas faltando no banco. Execute o SQL do README.' 
-          : `Erro ao salvar: ${err.message}` 
+        text: `Erro ao salvar: ${err.message}` 
       });
     } finally {
       setSaving(false);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Member } from '../types';
-import { supabase } from '../services/supabase';
+import { api } from '../services/api';
 
 export const MembersManagement: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([]);
@@ -14,15 +14,11 @@ export const MembersManagement: React.FC = () => {
   const fetchMembers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.from('members').select('*').order('name');
-      if (error) {
-        console.warn("Tabela 'members' pode não existir ainda. Simulando dados...");
-        setMembers([]);
-      } else {
-        setMembers(data || []);
-      }
+      const data = await api.get('members');
+      setMembers(data || []);
     } catch (e) {
       console.error(e);
+      setMembers([]);
     } finally {
       setLoading(false);
     }

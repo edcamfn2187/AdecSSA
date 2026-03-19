@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.env
+.env.local
+Dockerfile
+docker-compose.yml
+init.sql
+README.md
+capacitor.config.ts
+public
+src
+*.log

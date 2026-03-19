@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import { api } from '../services/api';
 import { ICONS } from '../constants';
 import { ChurchSettings } from '../types';
 
@@ -20,8 +20,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, initialSet
     if (!initialSettings) {
       const fetchSettings = async () => {
         try {
-          const { data, error } = await supabase.from('church_settings').select('*').single();
-          if (!error && data) setChurchSettings(data);
+          const data = await api.get('church_settings');
+          if (data && data.length > 0) setChurchSettings(data[0]);
         } catch (e) {
           console.warn("Could not fetch church settings for login screen.");
         }
@@ -36,7 +36,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, initialSet
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await api.auth.signInWithPassword({ email, password });
       if (error) throw error;
       onLoginSuccess();
     } catch (err: any) {

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { supabase } from '../services/supabase';
+import { api } from '../services/api';
 import { UserSession } from '../types';
 
 interface ProfilePageProps {
@@ -29,7 +29,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ session }) => {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { error } = await api.auth.updateUser({ password: newPassword });
       if (error) throw error;
       setMessage({ type: 'success', text: 'Senha atualizada com sucesso!' });
       setNewPassword('');
