@@ -1,0 +1,199 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { api } from '../services/api';
+import { ChurchSettings } from '../types';
+
+interface ChurchSettingsFormProps {
+  onSave: () => void;
+}
+
+export const ChurchSettingsForm: React.FC<ChurchSettingsFormProps> = ({ onSave }) => {
+  const [settings, setSettings] = useState<ChurchSettings>({
+    id: '',
+    name: '',
+    pastor: '',
+    secretary: '',
+    treasury_secretary: '',
+    superintendent: '',
+    address: '',
+    footer_text: '',
+    logo_url: ''
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const data = await api.get('church_settings');
+      if (data && data.length > 0) setSettings(data[0]);
+    } catch (err: any) {
+      console.error('Erro ao carregar configuracoes:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1 * 1024 * 1024) {
+        setMessage({ type: 'error', text: 'A logo deve ter no maximo 1MB.' });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSettings({ ...settings, logo_url: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      let logoUrl = settings.logo_url;
+
+      if (logoUrl && logoUrl.startsWith('data:image')) {
+        const response = await fetch('/api/upload-logo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base64: logoUrl })
+        });
+        const raw = await response.text();
+        let data: { error?: string; url?: string } = {};
+
+        try {
+          data = raw ? JSON.parse(raw) : {};
+        } catch {
+          throw new Error('Resposta invalida do servidor ao enviar logo');
+        }
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Falha ao enviar logo');
+        }
+
+        logoUrl = data.url;
+      }
+
+      const payload = {
+        name: settings.name,
+        pastor: settings.pastor,
+        secretary: settings.secretary,
+        treasury_secretary: settings.treasury_secretary,
+        superintendent: settings.superintendent,
+        address: settings.address,
+        footer_text: settings.footer_text,
+        logo_url: logoUrl
+      };
+
+      if (settings.id) {
+        await api.put('church_settings', settings.id, payload);
+      } else {
+        await api.post('church_settings', payload);
+      }
+
+      setSettings(current => ({ ...current, logo_url: logoUrl }));
+      setMessage({ type: 'success', text: 'Configuracoes atualizadas com sucesso!' });
+      onSave();
+      fetchSettings();
+    } catch (err: any) {
+      console.error('Erro API:', err);
+      setMessage({
+        type: 'error',
+        text: `Erro ao salvar: ${err.message}`
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-20 text-center flex flex-col items-center gap-4">
+        <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-slate-400 font-black uppercase text-[10px]">Sincronizando...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      <div className="bg-white p-6 md:p-12 rounded-[40px] border border-slate-200 shadow-sm">
+        <div className="flex flex-col md:flex-row items-center gap-8 mb-12 pb-10 border-b border-slate-100 text-center md:text-left">
+          <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+            <div className="w-32 h-32 bg-slate-100 rounded-[32px] flex items-center justify-center overflow-hidden border-2 border-dashed border-slate-200 group-hover:border-indigo-500 transition-all shadow-inner">
+              {settings.logo_url ? (
+                <img src={settings.logo_url} alt="Logo Preview" className="w-full h-full object-cover" />
+              ) : (
+                <svg className="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+              )}
+              <div className="absolute inset-0 bg-indigo-600/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity font-black text-[10px] uppercase">Alterar Logo</div>
+            </div>
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+          </div>
+
+          <div className="flex-1 space-y-4">
+            <h2 className="text-2xl md:text-3xl font-black text-slate-800 uppercase tracking-tight leading-tight">Dados da Igreja</h2>
+            <p className="text-[11px] text-slate-400 font-bold max-w-md">Defina os lideres responsaveis e a identidade visual que aparecera nos relatorios oficiais.</p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSave} className="space-y-8">
+          {message && (
+            <div className={`p-6 rounded-3xl text-sm font-bold border animate-in zoom-in-95 ${
+              message.type === 'success' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'
+            }`}>
+              {message.text}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome da Congregacao / Igreja</label>
+            <input type="text" required value={settings.name} onChange={e => setSettings({ ...settings, name: e.target.value })} placeholder="Ex: AD Ministerio Sede" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-700" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pastor Titular</label>
+              <input type="text" value={settings.pastor || ''} onChange={e => setSettings({ ...settings, pastor: e.target.value })} placeholder="Nome do Pastor" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-700" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Superintendente EBD</label>
+              <input type="text" value={settings.superintendent || ''} onChange={e => setSettings({ ...settings, superintendent: e.target.value })} placeholder="Nome do Superintendente" className="w-full p-4 bg-white border border-indigo-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-700" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">Secretaria(o) EBD</label>
+              <input type="text" value={settings.secretary || ''} onChange={e => setSettings({ ...settings, secretary: e.target.value })} placeholder="Nome do Secretario(a)" className="w-full p-4 bg-white border border-indigo-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-700" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest ml-1">Secretaria(o) Tesouraria</label>
+              <input type="text" value={settings.treasury_secretary || ''} onChange={e => setSettings({ ...settings, treasury_secretary: e.target.value })} placeholder="Nome do Secretario(a) da Tesouraria" className="w-full p-4 bg-white border border-emerald-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-500/10 font-bold text-slate-700" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Endereco Completo</label>
+            <input type="text" value={settings.address || ''} onChange={e => setSettings({ ...settings, address: e.target.value })} placeholder="Rua, Numero, Bairro - Cidade/UF" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-700" />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Rodape dos Relatorios PDF</label>
+            <textarea value={settings.footer_text || ''} onChange={e => setSettings({ ...settings, footer_text: e.target.value })} placeholder="Informacoes que aparecerao na base dos relatorios..." className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-medium text-slate-600 h-24 resize-none" />
+          </div>
+
+          <button type="submit" disabled={saving} className="w-full py-5 bg-slate-900 text-white font-black rounded-2xl shadow-xl hover:bg-indigo-700 transition-all active:scale-95 disabled:opacity-50 uppercase tracking-widest text-xs">
+            {saving ? 'SALVANDO DADOS...' : 'SALVAR CONFIGURACOES'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
